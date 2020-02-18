@@ -39,7 +39,7 @@ LIBS_NAMES := $(join $(LIBS_DIRS),$(addsuffix .a,$(addprefix /,$(notdir $(LIBS_D
 endif
 # Compiler settings.
 CC     := clang
-CFLAGS := -Wall -Wextra -Werror -Wunused -MMD -std=c11 -m32
+CFLAGS := -Wall -Wextra -Werror -Wunused -MMD -std=c11
 
 # by task needs to compile 32-bit executable
 ifeq (x86_64,$(shell uname -p))
