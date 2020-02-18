@@ -9,7 +9,7 @@
 #include <assert.h>
 
 #define MSG_USAGE "Usage: ./calc \"<expr-1>\" ... \"<expr-N>\""
-#define MSG_VALID "1234567890+-/*()"
+#define MSG_VALID "1234567890+-*/()"
 
 typedef long long expr_t;
 
@@ -17,8 +17,8 @@ typedef enum e_expr_opeartion {
 	e_op_invalid,
 	e_op_add,
 	e_op_sub,
-	e_op_div,
-	e_op_mul
+	e_op_mul,
+	e_op_div
 } expr_op;
 
 struct s_expr_data {
@@ -27,22 +27,22 @@ struct s_expr_data {
 	expr_op	op;
 } __attribute__((aligned(__BIGGEST_ALIGNMENT__)));
 
-void __attribute__((noreturn))	print_help(void);
+static void __attribute__((noreturn))	print_help(void);
 
-char	*trim_whitespaces(const char *src);
-void	syntax_validation_throw(const char *expr);
+static char	*trim_whitespaces(const char *src);
+static void	syntax_validation_throw(const char *expr);
 
-expr_t	expr_parser(char *expr);
+static expr_t	expr_parser(char *expr);
 
-expr_t	expr_run(const struct s_expr_data *restrict ed);
+static expr_t	expr_run(const struct s_expr_data *restrict ed);
 
 typedef expr_t (*fnptr_expr_op_)(const expr_t, const expr_t);
-expr_t __attribute__((noreturn))
+static expr_t __attribute__((noreturn))
 		f_expr_invalid(const expr_t a, const expr_t b);
-expr_t	f_expr_add(const expr_t a, const expr_t b);
-expr_t	f_expr_sub(const expr_t a, const expr_t b);
-expr_t	f_expr_div(const expr_t a, const expr_t b);
-expr_t	f_expr_mul(const expr_t a, const expr_t b);
+static expr_t	f_expr_add(const expr_t a, const expr_t b);
+static expr_t	f_expr_sub(const expr_t a, const expr_t b);
+static expr_t	f_expr_div(const expr_t a, const expr_t b);
+static expr_t	f_expr_mul(const expr_t a, const expr_t b);
 
 int	main(int argc, char *argv[]) {
 	--argc; ++argv;
@@ -61,15 +61,15 @@ int	main(int argc, char *argv[]) {
 	}
 }
 
-void __attribute__((noreturn))	print_help(void) {
+static void __attribute__((noreturn))	print_help(void) {
 	printf(MSG_USAGE "\n"
 	 "Available symbols: " MSG_VALID "\n"
-	 "Example: ./calc \"(2 + 4) * 5\"\n"
-	 "Output: \"(2 + 4) * 5\" = 30\n");
+	 "Example: ./calc \"(2 + 4) * 5\" \"(2 + 2)\" \"(2 * 4 + 5) - 3\"\n"
+	 "Output:\n30\n4\n10\n");
 	_Exit(EXIT_SUCCESS);
 }
 
-char	*trim_whitespaces(const char *src) {
+static char	*trim_whitespaces(const char *src) {
 	const size_t	src_len = strlen(src);
 	size_t			trim_len = 0;
 	char			*out = NULL;
@@ -85,7 +85,7 @@ char	*trim_whitespaces(const char *src) {
 	return out;
 }
 
-void	syntax_validation_throw(const char *expr) {
+static void	syntax_validation_throw(const char *expr) {
 # define _is_valid_expr_sym(c) (isdigit((int)(c)) \
 	|| '+' == (c) || '-' == (c) || '/' == (c) || '*' == (c) \
 	|| '(' == (c) || ')' == (c))
@@ -101,15 +101,15 @@ void	syntax_validation_throw(const char *expr) {
 }
 
 static inline expr_op	get_expr_op(const char op_sym) {
-	static const char	valids[] = { '+', '-', '/', '*', 0 };
+	static const char	valids[] = { '+', '-', '*', '/', 0 };
 	size_t				selector;
 
-	selector = ~0UL;
-	while (valids[++selector] && valids[selector] != op_sym)
-		;
+	selector = 0;
+	while (valids[selector] && valids[selector] != op_sym)
+		++selector;
 	if (!valids[selector])
-		return (e_op_invalid);
-	return ((expr_op)selector);
+		return e_op_invalid;
+	return (expr_op)(selector + 1);
 }
 
 # define _skip_digits(_s) while ((_s) && *(_s) && isdigit(*(_s))) ++(_s);
@@ -269,8 +269,22 @@ static char	*parse_parentheses(char *expr) {
 	return expr;
 }
 
-expr_t	expr_parser(char *expr) {
+static bool		is_has_op(const char *expr) {
+	bool	is_op = false;
+
+	for (const char *iptr = expr; iptr && *iptr; iptr++)
+		if (_is_sym_op_any(*iptr)) {
+			is_op = true;
+			break ;
+		}
+	return is_op;
+}
+
+static expr_t	expr_parser(char *expr) {
 	char	*e = parse_parentheses(expr);
+
+	if (!is_has_op(e))
+		return atoll(e);
 	return (is_expr_has_priority(e)
 		? parse_op_priority(e)
 		: parse_op_def_ltr(e, NULL));
@@ -284,19 +298,19 @@ expr_t	expr_parser(char *expr) {
 
 # undef _skip_digits
 
-expr_t __attribute__((noreturn))
+static expr_t __attribute__((noreturn))
 	f_expr_invalid(const expr_t a, const expr_t b) {
 		(void)a; (void)b;
 		errx(EXIT_FAILURE, "Invalid expression.");
 }
-expr_t	f_expr_add(const expr_t a, const expr_t b) { return a + b; }
-expr_t	f_expr_sub(const expr_t a, const expr_t b) { return a - b; }
-expr_t	f_expr_div(const expr_t a, const expr_t b) { return a / b; }
-expr_t	f_expr_mul(const expr_t a, const expr_t b) { return a * b; }
+static expr_t	f_expr_add(const expr_t a, const expr_t b) { return a + b; }
+static expr_t	f_expr_sub(const expr_t a, const expr_t b) { return a - b; }
+static expr_t	f_expr_div(const expr_t a, const expr_t b) { return a / b; }
+static expr_t	f_expr_mul(const expr_t a, const expr_t b) { return a * b; }
 
-expr_t	expr_run(const struct s_expr_data *restrict ed) {
+static expr_t	expr_run(const struct s_expr_data *restrict ed) {
 	static const fnptr_expr_op_	g_expr_op_lt[5] = {
-		f_expr_invalid, f_expr_add, f_expr_sub, f_expr_div, f_expr_mul
+		f_expr_invalid, f_expr_add, f_expr_sub, f_expr_mul, f_expr_div
 	};
 	return g_expr_op_lt[ed->op](ed->l_value, ed->r_value);
 }
