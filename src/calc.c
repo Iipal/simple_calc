@@ -19,7 +19,7 @@ typedef enum e_expr_opeartion {
 	e_op_sub,
 	e_op_div,
 	e_op_mul
-} __attribute__((packed)) expr_op;
+} expr_op;
 
 struct s_expr_data {
 	expr_t	l_value;
@@ -101,13 +101,15 @@ void	syntax_validation_throw(const char *expr) {
 }
 
 static inline expr_op	get_expr_op(const char op_sym) {
-	switch (op_sym) {
-		case '+': return e_op_add;
-		case '-': return e_op_sub;
-		case '/': return e_op_div;
-		case '*': return e_op_mul;
-		default: return e_op_invalid;
-	}
+	static const char	valids[] = { '+', '-', '/', '*', 0 };
+	size_t				selector;
+
+	selector = ~0UL;
+	while (valids[++selector] && valids[selector] != op_sym)
+		;
+	if (!valids[selector])
+		return (e_op_invalid);
+	return ((expr_op)selector);
 }
 
 # define _skip_digits(_s) while ((_s) && *(_s) && isdigit(*(_s))) ++(_s);
