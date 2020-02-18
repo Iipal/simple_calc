@@ -41,7 +41,7 @@ endif
 CC     := clang
 CFLAGS := -Wall -Wextra -Werror -Wunused -MMD -std=c11
 
-ifeq (,$(shell whereis clang | awk 'NR=1 {print $2}'))
+ifeq (,$(shell command -v clang 2> /dev/null))
 CC     := gcc
 endif
 
