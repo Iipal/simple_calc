@@ -53,10 +53,9 @@ int	main(int argc, char *argv[]) {
 
 	char	*trimmed_expr = NULL;
 	while (argc) {
-		printf("\"%s\":\n", *argv);
 		assert(trimmed_expr = trim_whitespaces(*argv));
 		syntax_validation_throw(trimmed_expr);
-		printf("result = %lld\n", expr_parser(trimmed_expr));
+		printf("%lld\n", expr_parser(trimmed_expr));
 		free(trimmed_expr);
 		--argc; ++argv;
 	}
@@ -113,10 +112,10 @@ static inline expr_op	get_expr_op(const char op_sym) {
 
 # define _skip_digits(_s) while ((_s) && *(_s) && isdigit(*(_s))) ++(_s);
 
-# define _is_sym_op_priority(c) ((c) == '*' || (c) == '/')
-# define _is_sym_op_default(c)  ((c) == '+' || (c) == '-')
-# define _is_sym_op_any(c)      ((c) == '+' || (c) == '-' \
-						      || (c) == '*' || (c) == '/')
+# define _is_sym_op_priority(c) ('*' == (c) || '/' == (c))
+# define _is_sym_op_default(c)  ('+' == (c) || '-' == (c))
+# define _is_sym_op_any(c)      ('+' == (c) || '-' == (c) \
+						      || '*' == (c) || '/' == (c))
 
 static inline bool	check_signed_lvalue(const char *expr) {
 	const char	*iptr = expr;
@@ -191,6 +190,7 @@ static expr_t	parse_op_priority(char *expr) {
 		char	*res_str = calloc(25, sizeof(char));
 		size_t	res_len = 0;
 
+		assert(end_dup);
 		sprintf(res_str, "%lld", expr_run(&ed));
 		res_len = strlen(res_str);
 		memcpy(expr + (l_operand - expr), res_str, res_len);
@@ -204,17 +204,83 @@ static expr_t	parse_op_priority(char *expr) {
 	return expr_run(&ed);
 }
 
+# define _is_pth(c) ('(' == (c) || ')' == (c))
+
+static char	*find_pth_close(char *start) {
+	size_t	nested_depth = 0;
+
+	for (char *iptr = start + 1; iptr && *iptr; iptr++)
+		if ('(' == *iptr)
+			++nested_depth;
+		else if (')' == *iptr) {
+			++nested_depth;
+			char	*eptr = iptr;
+			for (eptr = iptr; eptr && *eptr && nested_depth; eptr++)
+				if (')' == *eptr)
+					--nested_depth;
+			if (!nested_depth)
+				return (eptr - 1);
+		}
+	errx(EXIT_FAILURE, "Invalid parentheses.");
+	return NULL;
+}
+
+static char	*expr_res_to_str(char *expr) {
+	expr_t	res = is_expr_has_priority(expr)
+				? parse_op_priority(expr)
+				: parse_op_def_ltr(expr, NULL);
+	char	*str = calloc(25, sizeof(char));
+
+	assert(str);
+	sprintf(str, "%lld", res);
+	return str;
+}
+
+static char	*parse_parentheses(char *expr) {
+	char	*pth_start = strchr(expr, '(');
+	if (!pth_start)
+		return expr;
+	char	*pth_end = find_pth_close(pth_start);
+	const size_t	e_len = pth_end - pth_start;
+	char	*e = calloc(e_len - 1, sizeof(char));
+
+	assert(e);
+	memcpy(e, pth_start + 1, e_len - 1);
+	if (strchr(e, '(')) {
+		char	*res = NULL;
+		size_t	res_len = 0;
+
+		res = expr_res_to_str(parse_parentheses(e));
+		res_len = strlen(res);
+		memcpy(pth_start, res, res_len);
+		strcpy(expr + res_len, pth_end + 1);
+		free(e);
+		free(res);
+		return expr;
+	}
+	char	*tmp = expr_res_to_str(e);
+	size_t	tmp_len = strlen(tmp);
+
+	strcpy(expr + (pth_start - expr), tmp);
+	strcpy(expr + (pth_start - expr) + tmp_len, pth_end + 1);
+	free(tmp);
+	return expr;
+}
+
+expr_t	expr_parser(char *expr) {
+	char	*e = parse_parentheses(expr);
+	return (is_expr_has_priority(e)
+		? parse_op_priority(e)
+		: parse_op_def_ltr(e, NULL));
+}
+
+# undef _is_pth
+
 # undef _is_sym_op_any
 # undef _is_sym_op_default
 # undef _is_sym_op_priority
 
 # undef _skip_digits
-
-expr_t	expr_parser(char *expr) {
-	return (is_expr_has_priority(expr)
-		? parse_op_priority(expr)
-		: parse_op_def_ltr(expr, NULL));
-}
 
 expr_t __attribute__((noreturn))
 	f_expr_invalid(const expr_t a, const expr_t b) {
