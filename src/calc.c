@@ -11,7 +11,7 @@ bool	syntax_parser(const char *expr) {
 int	main(int argc, char *argv[]) {
 	--argc; ++argv;
 	if (!argc)
-		errx(EXIT_FAILURE, "Usage: ./calc \"<expr1>\" ... \"<exprN>\"");
+		errx(EXIT_FAILURE, "Usage: ./calc \"<expr-1>\" ... \"<expr-N>\"");
 
 	while (argc) {
 		if (!syntax_parser(*argv))
