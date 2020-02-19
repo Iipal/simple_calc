@@ -30,7 +30,7 @@ struct s_expr_data {
 static void __attribute__((noreturn))	print_help(void);
 
 static char	*trim_whitespaces(const char *src);
-static void	syntax_validation_throw(const char *expr);
+static void	syntax_validation_throwable(const char *expr);
 
 static expr_t	expr_parser(char *expr);
 
@@ -44,7 +44,7 @@ int	main(int argc, char *argv[]) {
 	char	*trimmed_expr = NULL;
 	while (argc) {
 		assert(trimmed_expr = trim_whitespaces(*argv));
-		syntax_validation_throw(trimmed_expr);
+		syntax_validation_throwable(trimmed_expr);
 		printf("%lld\n", expr_parser(trimmed_expr));
 		free(trimmed_expr);
 		--argc; ++argv;
@@ -56,41 +56,37 @@ static inline void __attribute__((noreturn))	print_help(void) {
 	 "Available symbols: " MSG_VALID "\n"
 	 "Example: ./calc \"(2 + 4) * 5\" \"(2 + 2)\" \"(2 * 4 + 5) - 3\"\n"
 	 "Output:\n30\n4\n10\n");
-	_Exit(EXIT_SUCCESS);
+	exit(EXIT_SUCCESS);
 }
 
 static inline char	*trim_whitespaces(const char *src) {
 	const size_t	src_len = strlen(src);
+	char			trim_buff[128] = { 0 };
 	size_t			trim_len = 0;
 	char			*out = NULL;
 
 	for (size_t i = 0; src_len > i; i++)
 		if (!isspace(src[i]))
-			++trim_len;
+			trim_buff[trim_len++] = src[i];
 	if (!(out = calloc(trim_len + 1, sizeof(char))))
 		return NULL;
-	for (size_t j = 0, i = 0; src_len > i; i++)
-		if (!isspace(src[i]))
-			out[j++] = src[i];
-	return out;
+	return strncpy(out, trim_buff, trim_len);
 }
 
-static inline void	syntax_validation_throw(const char *expr) {
+static inline void	syntax_validation_throwable(const char *expr) {
 # define _is_valid_expr_sym(c) (isdigit((int)(c)) \
 	|| '+' == (c) || '-' == (c) || '/' == (c) || '*' == (c) \
 	|| '(' == (c) || ')' == (c))
 
 	const char *iptr = expr;
-	for (; iptr && *iptr && _is_valid_expr_sym(*iptr); iptr++)
-			;
+	while (iptr && *iptr && _is_valid_expr_sym(*iptr))
+		++iptr;
 	if (*iptr)
 		errx(EXIT_FAILURE, "invalid symbol -- %c [ '%s' : '%s' ]\n"
 			"valid symbols are: \'" MSG_VALID "\'\n", *iptr, expr, iptr);
 
 # undef _is_invalid_expr_sym
 }
-
-# define _skip_digits(_s) while ((_s) && *(_s) && isdigit(*(_s))) ++(_s);
 
 # define _is_sym_op_priority(c) ('*' == (c) || '/' == (c))
 # define _is_sym_op_default(c)  ('+' == (c) || '-' == (c))
@@ -127,6 +123,7 @@ static inline bool	check_signed_value(const char *expr) {
 		: ('-' == expr[-1] && _is_sym_op_any(expr[-2])));
 }
 
+# define _skip_digits(_s) while ((_s) && *(_s) && isdigit(*(_s))) ++(_s);
 
 static expr_t	parse_op_default(const char *expr, struct s_expr_data *rec_e) {
 	struct s_expr_data	ed = { 0LL, 0LL, e_op_invalid };
@@ -244,7 +241,7 @@ static char	*parse_parentheses(char *expr) {
 	char	*tmp = pth_res_to_str(e);
 	size_t	tmp_len = strlen(tmp);
 
-	strcpy(expr + (pth_start - expr), tmp);
+	memcpy(expr + (pth_start - expr), tmp, tmp_len);
 	strcpy(expr + (pth_start - expr) + tmp_len, pth_end + 1);
 	free(tmp);
 	free(e);
