@@ -1,5 +1,7 @@
-# Simple calculator implementation on c
+# Simple calculator implementation on C
 ###### author: Taras Maluh
+
+[GitHub](https://github.com/Iipal/simple_calc)
 
 ### Tested on:
  - `Fedora 31 x86_64`:
