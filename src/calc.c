@@ -125,8 +125,7 @@ static inline bool	check_signed_value(const char *expr) {
 		: ('-' == expr[-1] && _is_sym_op_any(expr[-2])));
 }
 
-// ltr - left to right
-static expr_t	parse_op_def_ltr(const char *expr,
+static expr_t	parse_op_default(const char *expr,
 							struct s_expr_data *rec_e) {
 	struct s_expr_data	ed = { 0LL, 0LL, e_op_invalid };
 	const bool	is_signed_lvalue = check_signed_value(expr);
@@ -150,7 +149,7 @@ static expr_t	parse_op_def_ltr(const char *expr,
 	if (*iptr) {
 		ed.l_value = expr_run(&ed);
 		ed.op = get_expr_op(*iptr);
-		return parse_op_def_ltr(++iptr, &ed);
+		return parse_op_default(++iptr, &ed);
 	}
 	return expr_run(&ed);
 }
@@ -192,12 +191,10 @@ static expr_t	parse_op_priority(char *expr) {
 		free(end_dup);
 		return (is_expr_has_priority(expr)
 			? parse_op_priority(expr)
-			: parse_op_def_ltr(expr, NULL));
+			: parse_op_default(expr, NULL));
 	}
 	return expr_run(&ed);
 }
-
-# define _is_pth(c) ('(' == (c) || ')' == (c))
 
 static char	*find_pth_close(char *start) {
 	size_t	nested_depth = 0;
@@ -221,7 +218,7 @@ static char	*find_pth_close(char *start) {
 static char	*pth_res_to_str(char *expr) {
 	expr_t	res = is_expr_has_priority(expr)
 				? parse_op_priority(expr)
-				: parse_op_def_ltr(expr, NULL);
+				: parse_op_default(expr, NULL);
 	char	*str = calloc(25, sizeof(char));
 
 	assert(str);
@@ -274,10 +271,8 @@ static expr_t	expr_parser(char *expr) {
 		return atoll(e);
 	return (is_expr_has_priority(e)
 		? parse_op_priority(e)
-		: parse_op_def_ltr(e, NULL));
+		: parse_op_default(e, NULL));
 }
-
-# undef _is_pth
 
 # undef _is_sym_op_any
 # undef _is_sym_op_default
@@ -286,9 +281,9 @@ static expr_t	expr_parser(char *expr) {
 # undef _skip_digits
 
 static expr_t __attribute__((noreturn))
-	f_expr_invalid(const expr_t a, const expr_t b) {
-		(void)a; (void)b;
-		errx(EXIT_FAILURE, "Invalid expression.");
+f_expr_invalid(const expr_t a, const expr_t b) {
+	(void)a; (void)b;
+	errx(EXIT_FAILURE, "Invalid expression.");
 }
 static expr_t	f_expr_add(const expr_t a, const expr_t b) { return a + b; }
 static expr_t	f_expr_sub(const expr_t a, const expr_t b) { return a - b; }
