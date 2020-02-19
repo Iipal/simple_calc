@@ -1,7 +1,8 @@
 # Simple calculator implementation on C
 ###### author: Taras Maluh
 
-[GitHub](https://github.com/Iipal/simple_calc)
+ - Link to this project on [GitHub](https://github.com/Iipal/simple_calc).
+ - I also using my other project here: [MakeMeBetter](https://github.com/Iipal/MakeMeBetter)
 
 ### Tested on:
  - `Fedora 31 x86_64`:
