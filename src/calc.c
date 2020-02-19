@@ -34,16 +34,6 @@ static void	syntax_validation_throw(const char *expr);
 
 static expr_t	expr_parser(char *expr);
 
-static expr_t	expr_run(const struct s_expr_data *restrict ed);
-
-typedef expr_t (*fnptr_expr_op_)(const expr_t, const expr_t);
-static expr_t __attribute__((noreturn))
-		f_expr_invalid(const expr_t a, const expr_t b);
-static expr_t	f_expr_add(const expr_t a, const expr_t b);
-static expr_t	f_expr_sub(const expr_t a, const expr_t b);
-static expr_t	f_expr_div(const expr_t a, const expr_t b);
-static expr_t	f_expr_mul(const expr_t a, const expr_t b);
-
 int	main(int argc, char *argv[]) {
 	--argc; ++argv;
 	if (argc && (!strcmp(*argv, "--help") || !strcmp(*argv, "-h")))
@@ -61,7 +51,7 @@ int	main(int argc, char *argv[]) {
 	}
 }
 
-static void __attribute__((noreturn))	print_help(void) {
+static inline void __attribute__((noreturn))	print_help(void) {
 	printf(MSG_USAGE "\n"
 	 "Available symbols: " MSG_VALID "\n"
 	 "Example: ./calc \"(2 + 4) * 5\" \"(2 + 2)\" \"(2 * 4 + 5) - 3\"\n"
@@ -69,7 +59,7 @@ static void __attribute__((noreturn))	print_help(void) {
 	_Exit(EXIT_SUCCESS);
 }
 
-static char	*trim_whitespaces(const char *src) {
+static inline char	*trim_whitespaces(const char *src) {
 	const size_t	src_len = strlen(src);
 	size_t			trim_len = 0;
 	char			*out = NULL;
@@ -85,7 +75,7 @@ static char	*trim_whitespaces(const char *src) {
 	return out;
 }
 
-static void	syntax_validation_throw(const char *expr) {
+static inline void	syntax_validation_throw(const char *expr) {
 # define _is_valid_expr_sym(c) (isdigit((int)(c)) \
 	|| '+' == (c) || '-' == (c) || '/' == (c) || '*' == (c) \
 	|| '(' == (c) || ')' == (c))
@@ -94,11 +84,23 @@ static void	syntax_validation_throw(const char *expr) {
 	for (; iptr && *iptr && _is_valid_expr_sym(*iptr); iptr++)
 			;
 	if (*iptr)
-		errx(EXIT_FAILURE, "invalid symbol -- %c\n"
-			"valid symbols are: \'" MSG_VALID "\'\n", *iptr);
+		errx(EXIT_FAILURE, "invalid symbol -- %c [ '%s' : '%s' ]\n"
+			"valid symbols are: \'" MSG_VALID "\'\n", *iptr, expr, iptr);
 
 # undef _is_invalid_expr_sym
 }
+
+# define _skip_digits(_s) while ((_s) && *(_s) && isdigit(*(_s))) ++(_s);
+
+# define _is_sym_op_priority(c) ('*' == (c) || '/' == (c))
+# define _is_sym_op_default(c)  ('+' == (c) || '-' == (c))
+# define _is_sym_op_any(c)      ('+' == (c) || '-' == (c) \
+						      || '*' == (c) || '/' == (c))
+
+static expr_t	parse_op_priority(char *expr);
+static expr_t	parse_op_default(const char *expr, struct s_expr_data *rec_e);
+
+static expr_t	expr_run(const struct s_expr_data *restrict ed);
 
 static inline expr_op	get_expr_op(const char op_sym) {
 	static const char	valids[] = { '+', '-', '*', '/', 0 };
@@ -112,12 +114,12 @@ static inline expr_op	get_expr_op(const char op_sym) {
 	return (expr_op)(selector + 1);
 }
 
-# define _skip_digits(_s) while ((_s) && *(_s) && isdigit(*(_s))) ++(_s);
-
-# define _is_sym_op_priority(c) ('*' == (c) || '/' == (c))
-# define _is_sym_op_default(c)  ('+' == (c) || '-' == (c))
-# define _is_sym_op_any(c)      ('+' == (c) || '-' == (c) \
-						      || '*' == (c) || '/' == (c))
+static inline expr_t	choose_op_parser(char *expr) {
+	char *iptr = expr;
+	while (iptr && *iptr && !_is_sym_op_priority(*iptr))
+		++iptr;
+	return (!!*iptr ? parse_op_priority(expr) : parse_op_default(expr, NULL));
+}
 
 static inline bool	check_signed_value(const char *expr) {
 	return (('-' == *expr)
@@ -125,8 +127,8 @@ static inline bool	check_signed_value(const char *expr) {
 		: ('-' == expr[-1] && _is_sym_op_any(expr[-2])));
 }
 
-static expr_t	parse_op_default(const char *expr,
-							struct s_expr_data *rec_e) {
+
+static expr_t	parse_op_default(const char *expr, struct s_expr_data *rec_e) {
 	struct s_expr_data	ed = { 0LL, 0LL, e_op_invalid };
 	const bool	is_signed_lvalue = check_signed_value(expr);
 	const char	*iptr = expr + is_signed_lvalue;
@@ -154,12 +156,6 @@ static expr_t	parse_op_default(const char *expr,
 	return expr_run(&ed);
 }
 
-static inline bool	is_expr_has_priority(const char *expr) {
-	for (; expr && *expr && !_is_sym_op_priority(*expr); expr++)
-		;
-	return !!*expr;
-}
-
 static expr_t	parse_op_priority(char *expr) {
 	struct s_expr_data	ed = { 0LL, 0LL, e_op_invalid };
 	char	*iptr = expr;
@@ -169,13 +165,14 @@ static expr_t	parse_op_priority(char *expr) {
 		if (isdigit(*iptr) && ((_is_sym_op_default(iptr[-1]))
 			|| ('-' == iptr[-1] && _is_sym_op_default(iptr[-2])) || !iptr[-1]))
 			l_operand = iptr;
-	if (!*iptr || !iptr[1] || !isdigit(iptr[1]) || !l_operand
-	|| (_is_sym_op_default(iptr[1]) || _is_sym_op_default(iptr[-1])))
+	if (!*iptr || !iptr[1] || !l_operand)
 		errx(EXIT_FAILURE, "Invalid expression.");
 	l_operand -= check_signed_value(l_operand);
 	ed.op = get_expr_op(*iptr);
 	ed.l_value = atoll(l_operand);
 	ed.r_value = atoll(++iptr);
+	if (0 > ed.r_value)
+		++iptr;
 	_skip_digits(iptr);
 	if (*iptr || l_operand != expr) {
 		char	*end_dup = strdup(iptr);
@@ -189,9 +186,7 @@ static expr_t	parse_op_priority(char *expr) {
 		strcpy(expr + (l_operand - expr) + res_len, end_dup);
 		free(res_str);
 		free(end_dup);
-		return (is_expr_has_priority(expr)
-			? parse_op_priority(expr)
-			: parse_op_default(expr, NULL));
+		return choose_op_parser(expr);
 	}
 	return expr_run(&ed);
 }
@@ -215,26 +210,24 @@ static char	*find_pth_close(char *start) {
 	return NULL;
 }
 
-static char	*pth_res_to_str(char *expr) {
-	expr_t	res = is_expr_has_priority(expr)
-				? parse_op_priority(expr)
-				: parse_op_default(expr, NULL);
-	char	*str = calloc(25, sizeof(char));
+static inline char	*pth_res_to_str(char *expr) {
+	char	*out = NULL;
 
-	assert(str);
-	sprintf(str, "%lld", res);
-	return str;
+	assert(out = calloc(25, sizeof(char)));
+	sprintf(out, "%lld", choose_op_parser(expr));
+	return out;
 }
 
 static char	*parse_parentheses(char *expr) {
 	char	*pth_start = strchr(expr, '(');
 	if (!pth_start)
 		return expr;
+
 	char	*pth_end = find_pth_close(pth_start);
 	const size_t	e_len = pth_end - pth_start;
-	char	*e = calloc(e_len - 1, sizeof(char));
+	char	*e = NULL;
 
-	assert(e);
+	assert(e = calloc(e_len, sizeof(char)));
 	memcpy(e, pth_start + 1, e_len - 1);
 	if (strchr(e, '(')) {
 		char	*res = NULL;
@@ -254,24 +247,19 @@ static char	*parse_parentheses(char *expr) {
 	strcpy(expr + (pth_start - expr), tmp);
 	strcpy(expr + (pth_start - expr) + tmp_len, pth_end + 1);
 	free(tmp);
+	free(e);
 	return expr;
 }
 
-static bool	is_has_op(const char *expr) {
-	for (const char *iptr = expr; iptr && *iptr; iptr++)
-		if (_is_sym_op_any(*iptr))
-			return true;
-	return false;
-}
-
-static expr_t	expr_parser(char *expr) {
+static inline expr_t	expr_parser(char *expr) {
 	char	*e = parse_parentheses(expr);
 
-	if (!is_has_op(e))
-		return atoll(e);
-	return (is_expr_has_priority(e)
-		? parse_op_priority(e)
-		: parse_op_default(e, NULL));
+	bool	is_op_after_pth_parse = false;
+	for (const char *iptr = expr; iptr && *iptr; iptr++)
+		if (_is_sym_op_any(*iptr))
+			is_op_after_pth_parse = true;
+
+	return (is_op_after_pth_parse ? choose_op_parser(e) : atoll(e));
 }
 
 # undef _is_sym_op_any
@@ -290,8 +278,8 @@ static expr_t	f_expr_sub(const expr_t a, const expr_t b) { return a - b; }
 static expr_t	f_expr_div(const expr_t a, const expr_t b) { return a / b; }
 static expr_t	f_expr_mul(const expr_t a, const expr_t b) { return a * b; }
 
-static expr_t	expr_run(const struct s_expr_data *restrict ed) {
-	static const fnptr_expr_op_	g_expr_op_lt[5] = {
+static inline expr_t	expr_run(const struct s_expr_data *restrict ed) {
+	static expr_t (*g_expr_op_lt[5])(const expr_t, const expr_t) = {
 		f_expr_invalid, f_expr_add, f_expr_sub, f_expr_mul, f_expr_div
 	};
 	return g_expr_op_lt[ed->op](ed->l_value, ed->r_value);
