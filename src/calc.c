@@ -120,19 +120,9 @@ static inline expr_op	get_expr_op(const char op_sym) {
 						      || '*' == (c) || '/' == (c))
 
 static inline bool	check_signed_value(const char *expr) {
-	if ('-' == *expr) {
-		if (_is_sym_op_any(expr[-1])) {
-			return true;
-		} else {
-			const char	*iptr = expr + 1;
-			_skip_digits(iptr);
-			return _is_sym_op_any(*iptr);
-		}
-	} else if ('-' == expr[-1] && _is_sym_op_any(expr[-2])) {
-		return true;
-	} else {
-		return false;
-	}
+	return (('-' == *expr)
+		? (_is_sym_op_any(expr[-1]) || !expr[-1])
+		: ('-' == expr[-1] && _is_sym_op_any(expr[-2])));
 }
 
 // ltr - left to right
@@ -150,7 +140,7 @@ static expr_t	parse_op_def_ltr(const char *expr,
 	} else {
 		ed.op = rec_e->op;
 	}
-	if (!rec_e && (!iptr[1] || !isdigit(iptr[1])))
+	if (!rec_e && !iptr[1])
 		ed.op = e_op_invalid;
 	ed.l_value = rec_e ? rec_e->l_value : atoll(expr);
 	ed.r_value = atoll(iptr++ + !rec_e - is_signed_lvalue);
