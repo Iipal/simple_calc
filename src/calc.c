@@ -119,27 +119,29 @@ static inline expr_op	get_expr_op(const char op_sym) {
 # define _is_sym_op_any(c)      ('+' == (c) || '-' == (c) \
 						      || '*' == (c) || '/' == (c))
 
-static inline bool	check_signed_lvalue(const char *expr) {
-	const char	*iptr = expr;
-	if ('-' == *iptr) {
-		if (_is_sym_op_any(expr[-1]))
+static inline bool	check_signed_value(const char *expr) {
+	if ('-' == *expr) {
+		if (_is_sym_op_any(expr[-1])) {
 			return true;
-		else {
-			++iptr;
+		} else {
+			const char	*iptr = expr + 1;
 			_skip_digits(iptr);
 			return _is_sym_op_any(*iptr);
 		}
+	} else if ('-' == expr[-1] && _is_sym_op_any(expr[-2])) {
+		return true;
+	} else {
+		return false;
 	}
-	return false;
 }
 
 // ltr - left to right
 static expr_t	parse_op_def_ltr(const char *expr,
 							struct s_expr_data *rec_e) {
 	struct s_expr_data	ed = { 0LL, 0LL, e_op_invalid };
-	const char	*iptr = expr;
+	const bool	is_signed_lvalue = check_signed_value(expr);
+	const char	*iptr = expr + is_signed_lvalue;
 
-	iptr += check_signed_lvalue(expr);
 	if (!rec_e) {
 		if (!_is_sym_op_any(*iptr)) {
 			_skip_digits(iptr);
@@ -151,7 +153,7 @@ static expr_t	parse_op_def_ltr(const char *expr,
 	if (!rec_e && (!iptr[1] || !isdigit(iptr[1])))
 		ed.op = e_op_invalid;
 	ed.l_value = rec_e ? rec_e->l_value : atoll(expr);
-	ed.r_value = atoll(iptr++ + !rec_e);
+	ed.r_value = atoll(iptr++ + !rec_e - is_signed_lvalue);
 	if (0 > ed.r_value)
 		++iptr;
 	_skip_digits(iptr);
@@ -170,7 +172,6 @@ static inline bool	is_expr_has_priority(const char *expr) {
 }
 
 static expr_t	parse_op_priority(char *expr) {
-	const bool	is_signed_lvalue = check_signed_lvalue(expr);
 	struct s_expr_data	ed = { 0LL, 0LL, e_op_invalid };
 	char	*iptr = expr;
 	char	*l_operand = NULL;
@@ -182,7 +183,7 @@ static expr_t	parse_op_priority(char *expr) {
 	if (!*iptr || !iptr[1] || !isdigit(iptr[1]) || !l_operand
 	|| (_is_sym_op_default(iptr[1]) || _is_sym_op_default(iptr[-1])))
 		errx(EXIT_FAILURE, "Invalid expression.");
-	l_operand -= (is_signed_lvalue && '-' == l_operand[-1]);
+	l_operand -= check_signed_value(l_operand);
 	ed.op = get_expr_op(*iptr);
 	ed.l_value = atoll(l_operand);
 	ed.r_value = atoll(++iptr);
@@ -227,7 +228,7 @@ static char	*find_pth_close(char *start) {
 	return NULL;
 }
 
-static char	*expr_res_to_str(char *expr) {
+static char	*pth_res_to_str(char *expr) {
 	expr_t	res = is_expr_has_priority(expr)
 				? parse_op_priority(expr)
 				: parse_op_def_ltr(expr, NULL);
@@ -252,7 +253,7 @@ static char	*parse_parentheses(char *expr) {
 		char	*res = NULL;
 		size_t	res_len = 0;
 
-		res = expr_res_to_str(parse_parentheses(e));
+		res = pth_res_to_str(parse_parentheses(e));
 		res_len = strlen(res);
 		memcpy(pth_start, res, res_len);
 		strcpy(expr + res_len, pth_end + 1);
@@ -260,7 +261,7 @@ static char	*parse_parentheses(char *expr) {
 		free(res);
 		return expr;
 	}
-	char	*tmp = expr_res_to_str(e);
+	char	*tmp = pth_res_to_str(e);
 	size_t	tmp_len = strlen(tmp);
 
 	strcpy(expr + (pth_start - expr), tmp);
@@ -269,15 +270,11 @@ static char	*parse_parentheses(char *expr) {
 	return expr;
 }
 
-static bool		is_has_op(const char *expr) {
-	bool	is_op = false;
-
+static bool	is_has_op(const char *expr) {
 	for (const char *iptr = expr; iptr && *iptr; iptr++)
-		if (_is_sym_op_any(*iptr)) {
-			is_op = true;
-			break ;
-		}
-	return is_op;
+		if (_is_sym_op_any(*iptr))
+			return true;
+	return false;
 }
 
 static expr_t	expr_parser(char *expr) {
